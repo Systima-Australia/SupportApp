@@ -1,49 +1,28 @@
 #!/bin/zsh
 
-# Script stored at /Library/Application Support/Systima/new_ticket.bash
-# This script is called by the SupportApp.app to create a new ticket in Autotask
-# Embed the command "sudo bash "/Library/Application Support/Systima/scripts/new_ticket.bash"" in the SupportApp.app config file
+# Prompt for user empowered New Ticket generation in AutoTask
+# Interactive prompts for user input utilizing swiftDialog and AutoTask API
 
-Username=$(stat -f%Su /dev/console)
-autotaskURL="https://webservices6.autotask.net/atservicesrest/v1.0"
-progressDialogCommand="/var/tmp/dialog.log"
+# Script written by Tully Jagoe for Systima 03/05/24
+# Not approved for distribution or replication
+# This script is only permitted to be deployed to and used by Systima, on Systima managed macOS endpoints
 
-progessDialog () {
-    /usr/local/bin/dialog \
-        --title none \
-        --icon "/Library/Application Support/Systima/systima_logo.png" --iconsize 100 -s \
-        --message "$1" \
-        --messagefont size=20 \
-        --messagealignment center \
-        --messageposition center \
-        --mini \
-        --progress 100 \
-        --position center/centre \
-        --movable \
-        --commandfile "$progressDialogCommand"
-}
+####################################################################################################
 
-errorDialog() {
-    /usr/local/bin/dialog \
-        --title "Error loading Ticket system" \
-        --message "$1" \
-        --messagefont size=20 \
-        --messagealignment center \
-        --messageposition center \
-        --bannerimage "/Library/Application Support/Systima/support_request_banner.png" \
-        --button1text "OK" \
-        --buttonstyle center \
-        --position center/centre \
-        --ontop
-}
+# Global variable definitions
+export Username=$(stat -f%Su /dev/console)
+export repo="SupportApp"
+export localDir="/Library/Application Support/Systima/$repo"
 
-dialogUpdate() {
-    # $1: dialog command
-    local dcommand="$1"
-    [[ -n $progressDialogCommand ]] && {
-        echo "$dcommand" >> "$progressDialogCommand"
-    }
-}
+# Include subshells for functions
+source "$localDir/download_assets.bash"
+source "$localDir/dialog.bash"
+source "$localDir/.cacheCreds.bash"
+
+####################################################################################################
+
+# Confirm all assets are up to date
+downloadAssets "$repo"
 
 getWorkstationStats() {
     # Workstation information
@@ -74,26 +53,23 @@ getWorkstationStats() {
 
     # Uptime
     uptime=$(uptime | awk -F' up ' '{if ($2 ~ /days/) {split($2, a, " "); print a[1]} else if ($2 ~ /mins/ || $2 == "") print "0"; else {split($1, a, ":"); if (length(a) == 2 && a[1] < 24) print "0"; else print int(a[1] / 24)}}') #; echo "$uptime"
+
     # Battery
     batteryCondition=$(system_profiler SPPowerDataType | grep -i "condition" | sed -e 's/^[[:space:]]*//' -e 's/Condition: //') #; echo "$batteryCondition"
 }
 
-cacheATCreds() {
+getATFields() {
     # Autotask API credentials
     progessDialog "Retrieving ticket data..." &
-    credsFile='/var/root/.creds.plist' > /dev/null 2>&1
-    autotaskURL="https://webservices6.autotask.net/atservicesrest/v1.0"
-    ATAPIIntCode=$(defaults read "$credsFile" ATAPIIntCode) > /dev/null 2>&1
-    ATAPIUsername=$(defaults read "$credsFile" ATAPIUsername) > /dev/null 2>&1
-    ATAPISecretKey=$(defaults read "$credsFile" ATAPISecretKey) > /dev/null 2>&1
-    ATAPIQuery() { curl -sSL --globoff "$autotaskURL/$1/query?search=$2" -H "ApiIntegrationCode: $ATAPIIntCode" -H "UserName: $ATAPIUsername" -H "Secret: $ATAPISecretKey" -H "Content-Type: application/json"; }
     
     # Cache the Autotask configurationID against device serial number
     ATConfigItemQuery=$(ATAPIQuery "ConfigurationItems" "{\"filter\":[{\"op\":\"eq\",\"field\":\"serialNumber\",\"value\":\"$(system_profiler SPHardwareDataType | awk '/Serial/ {print $4}')\"}]}") > /dev/null 2>&1
     ATConfigItem=$(echo "${ATConfigItemQuery//,/\n}" | tr -d '{}[]()' | sed 's/"items"://') ; #echo "$ATConfigItem"
     ATConfigItemID=$(echo "$ATConfigItem" | grep '"id":' | awk -F':' '{print $2}') ; #echo "ATConfigItemID:$ATConfigItemID"
     ATCompanyID=$(echo "$ATConfigItem" | grep '"companyID":' | awk -F':' '{print $2}') ; #echo "ATCompanyID:$ATCompanyID"
+    sudo -u $Username defaults write "/Users/$Username/Library/Preferences/profileconfig.plist" ATCompanyID "$ATCompanyID"
 
+    # Check if the companyID is empty, if so, show error message and exit
     [[ -z "$ATCompanyID" ]] &&  { dialogUpdate "quit:" ; errorDialog "There was an issue loading the ticket submission API, please call Systima on 03 8353 0530 or email support@systima.com.au"; echo -e "companyID not detected. Logs:\n$ATConfigItem" && exit 1; }
 
     # Get the Client name and web address based off the companyID
@@ -110,40 +86,37 @@ cacheATCreds() {
     ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID}]}") > /dev/null 2>&1
     ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d '{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
     ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; #echo "ATContactID:$ATContactID"
+    sudo -u $Username defaults write "/Users/$Username/Library/Preferences/profileconfig.plist" ATContactID "$ATContactID"
     ATContactMobile=$(echo "$ATContact" | grep '"mobilePhone":' | awk -F':' '{print $2}' | tr -d '"') ; #echo "ATContactMobile:$ATContactMobile"
     ATContactEmail=$(echo "$ATContact" | grep '"emailAddress":' | awk -F':' '{print $2}' | tr -d '"') ; #echo "ATContactEmail:$ATContactEmail"
-    dialogUpdate "quit:"
+    dialogUpdate "quit:" # Close the progress dialog
 }
 
-swiftDialogTicket() {
-    # Start swiftDialog
+ticketDialog() {
     ticketDialog="$(/usr/local/bin/dialog \
         --title none \
-        --message "If urgent assistance is required, please call Systima at 03 8353 0530" \
+        --message "none" \
         --messagefont size=15 \
-        --bannerimage "/Library/Application Support/Systima/support_request_banner.png" \
+        --bannerimage "$localDir/images/new_support_request.png" \
         --button1text "Submit" \
         --button2text "Cancel" \
         --buttonstyle center \
-        --position center/centre \
-        --ontop \
+        --position center \
         --height 600 \
+        --infobox "If urgent assistance<br>is required, please<br>call Systima on:<br>**[03 8353 0530](tel:0383530530)**<br><br><br>To take a screenshot press<br>Shift+Command+4<br>You can then draw a box for the screenshot.<br><br>Alternatively, press space and your mouse will become a camera symbol<br>![Screenshot camera cursor](https://raw.githubusercontent.com/Systima-Australia/SupportApp/main/images/screenshot_icon.png)<br>then simply click the window with the error to take a perfect screenshot." \
         --dialog \
         --textfield "Contact Name",required,value="$userRealName" \
         --textfield "Contact Email Address",required,value="$ATContactEmail" \
         --textfield "Contact Phone Number",required,value="$ATContactMobile" \
         --textfield "Computer Name",value="$workstation" \
-        --textfield "Ticket Title",required \
+        --textfield "Ticket Title",required,regex=".{1,70}",,regexerror="Ticket Title has a maximum of 70 characters" \
         --textfield "Detailed description",required,editor \
-        --textfield "When did the issue start",value="$(date +"%d/%m/%y %H:%M")"
-    )"
+        --textfield "When did the issue start",value="$(date +"%d/%m/%y %H:%M")" \
+        --textfield "Attach Screenshot,fileselect",filetype="jpeg jpg png"
+        )"
 
     returncode=$?
-
-    [[ $returncode -eq 2 ]] && { echo "Ticket creation cancelled" && exit 0; }
-    
-    # Split the output into an array
-    #IFS=':' read -r -a textfield_values <<< "$ticketDialog"
+    [[ $returncode -eq 2 ]] && { echo "Ticket creation cancelled by user" && exit 0; }
 
     # Assign each array element to a separate variable
     contactName="$(echo "${ticketDialog}" | grep "Contact Name" | sed 's/Contact Name : //' )" ; #echo "$contactName"
@@ -154,17 +127,17 @@ swiftDialogTicket() {
     issueStart="$(echo "${ticketDialog}" | grep "When did the issue start" | sed 's/When did the issue start : //' )" ; echo "Issue start: $issueStart"
 }
 
-reverifyUserID() {
-progessDialog "Verifing contact information..." &
-ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID}]}") > /dev/null 2>&1
-ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
-ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; echo "ATContactID:$ATContactID"
-dialogUpdate "quit:"
+verifyUserID() {
+    progessDialog "Verifing contact information..." &
+    ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID}]}") > /dev/null 2>&1
+    ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
+    ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; echo "ATContactID:$ATContactID"
+    dialogUpdate "quit:" # Close the progress dialog
 }
 
 generateTicketFields() {
 # Create Ticket title
-ticketTitle="$workstation - $ticketTitle"
+ticketTitle="$ATCompanyName - $workstation - $ticketTitle"
 
 # Create Ticket Description
 ticketDescription="Client: $ATCompanyName
@@ -197,8 +170,8 @@ Battery Condition: $batteryCondition"
 postATTicket() {
     progessDialog "Submitting ticket..." &
     # Post the ticket
-    ATAPIPost() { curl -sL --globoff "$autotaskURL/$1" -H "ATAPIIntCode: $ATAPIIntCode" -H "UserName: $ATAPIUsername" -H "Secret: $ATAPISecretKey" -H "Content-Type: application/json" --data "$2";}
-    ticketResponse=$(ATAPIPost "Tickets" "{
+    ATPostResponse=$(ATAPIPost "{
+        \"billingCodeID\": 29683681,
         \"companyID\": \"$ATCompanyID\",
         \"configurationItemID\": \"$ATConfigItemID\",
         \"contractID\": \"$ATContractID\",
@@ -208,42 +181,47 @@ postATTicket() {
         \"QueueID\": 29684341,
         \"source\": -1,
         \"status\": 1,
-        \"title\": \"$ticketTitle\"
-    }")
-ATTicket=$(echo -e "${ticketResponse//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://')
-ATTicketID=$(echo "$ATTicket" | grep '"itemId":' | awk -F':' '{print $2}') ; #echo "ATTicketID:$ATTicketID"
-dialogUpdate "quit:"
-[[ -z "$ATTicketID" ]] && { errorDialog "Could not process required support information\nPlease call Systima on 03 8353 0530\nor email support@systima.com.au"; echo "Could not post to Autotask:\n$ticketResponse" && exit 1; }  
+        \"title\": \"$ticketTitle\" }")
+
+    ATTicket=$(echo -e "${ATPostResponse//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://')
+    ATTicketID=$(echo "$ATTicket" | grep '"itemId":' | awk -F':' '{print $2}') ; #echo "ATTicketID:$ATTicketID"
+    dialogUpdate "quit:" # Close the progress dialog
+
+    [[ -z "$ATTicketID" ]] && {
+        errorDialog "Could not process required support information
+Please call Systima on 03 8353 0530
+or email support@systima.com.au"
+    echo "Could not post to Autotask:\n$ATPostResponse"
+    exit 1; }  
 }
 
-getATTicket() {
-# Retrieve ticketNumber from ticketID
+getATTicketNumber() {
+    # Retrieve ticketNumber from ticketID
     ATTicketIDQuery=$(ATAPIQuery "Tickets" "{\"filter\":[{\"op\":\"eq\",\"field\":\"id\",\"value\":\"$ATTicketID\"}]}") > /dev/null 2>&1
     ATTicketID=$(echo "${ATTicketIDQuery//,/\n}" | tr -d ',{}[]()') ; #echo "$ATTicketNumber"
     ATTicketNumber=$(echo "$ATTicketID" | grep '"ticketNumber":' | awk -F':' '{print $2}' | tr -d '"') ; echo "ATTicketNumber:$ATTicketNumber"
 }
 
-responseDialog() {
-# Start responseDialog
-/usr/local/bin/dialog \
-    --title "Your ticket has been submitted" \
-    --message "Your ticket number is:\n**\n\n$ATTicketNumber\n\n**\n\nIf urgent assistance is required, please call Systima at 03 8353 0530" \
-    --messagefont size=15 \
-    --messagealignment center \
-    --bannerimage "/Library/Application Support/Systima/support_request_banner.png" \
-    --button1text "OK" \
-    --buttonstyle center \
-    --position center/centre \
-    --ontop
-}
-
 # Run the script
-#curlSystimaAssets
+updateAssets
 getWorkstationStats
-cacheATCreds
-swiftDialogTicket
-reverifyUserID
+getATFields
+ticketDialog
+verifyUserID
 generateTicketFields
 postATTicket
-getATTicket
-[[ -n "$ATTicketNumber" ]] && responseDialog || { errorDialog "Apologies, there was an error when submitting your ticket\nPlease call Systima on 03 8353 0530\nor email support@systima.com.au"; echo -e "Autotask Ticket Number not returned. Logs:\n$ATTicketID" ; }
+getATTicketNumber
+
+[[ -n "$ATTicketNumber" ]] &&
+    responseDialog "$ATTicketNumber" || {
+    errorDialog "Could not retrieve Ticket Number" \
+"Your ticket may have been submitted,
+however there was unfortunately no response
+when retrieving the Ticket Number.
+
+Please submit your ticket as an email,
+or call Systima on 03 8353 0530." \
+"$ticketTitle" \
+"$ticketDescription"
+echo -e "Autotask Ticket Number could not be retrieved. Logs:\n$ATTicketID"
+}
