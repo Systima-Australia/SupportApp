@@ -30,12 +30,14 @@ progessDialog () {
 
 errorDialog() {
     /usr/local/bin/dialog \
-        --title "$1" \
+        --title none \
+        --bannerimage "$localDir/images/banner.png" \
+        --bannertitle "$1                            " \
+        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left"\
         --message "$2" \
         --messagefont size=20 \
         --messagealignment center \
         --messageposition center \
-        --bannerimage "$localDir/images/request_failed.png" \
         --button1text "Submit as Email" \
         --button1action "mailto:support@systima.com.au?subject=$3&body=$4" \
         --button2text "Cancel request" \
@@ -46,12 +48,15 @@ errorDialog() {
 
 responseDialog() {
     /usr/local/bin/dialog \
-        --title "Your ticket has been submitted" \
+        --title none \
+        --bannerimage "$localDir/images/banner.png" \
+        --bannertitle "Ticket Submitted                            " \
+        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left"\
+        --message "$2" \
         --textfield "Ticket Number:",value="$1" \
         --message "If urgent assistance is required, please call Systima at 03 8353 0530" \
         --messagefont size=25 \
         --messagealignment center \
-        --bannerimage "/Library/Application Support/Systima/SupportApp/images/ticket_submitted.png" \
         --button1text "OK" \
         --buttonstyle center \
         --small \
