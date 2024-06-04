@@ -15,13 +15,14 @@ progessDialog () {
     /usr/local/bin/dialog \
         --title none \
         --icon "$localDir/images/systima_logo.png" --iconsize 100 -s \
+        --dialog \
         --message "$1" \
         --messagefont size=20 \
         --messagealignment center \
         --messageposition center \
         --mini \
-        --progress 100 \
-        --position center/centre \
+        --progress \
+        --position centre \
         --movable \
         --commandfile "$progressDialogCommand" \
         --ontop
