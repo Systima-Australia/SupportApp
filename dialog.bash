@@ -1,7 +1,6 @@
 #!/bin/bash
 
 progressDialogCommand="/var/tmp/dialog.log"
-localDir="/Library/Application Support/Systima/SupportApp"
 source "$localDir/.cacheCreds.bash"
 
 dialogUpdate() {
