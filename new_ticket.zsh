@@ -83,7 +83,7 @@ getATFields() {
     ATContractID=$(echo "$ATContract" | grep '"id":' | awk -F':' '{print $2}') ; #echo "ATContractID:$ATContractID"
 
     # Cache the Autotask user contactID against requesting users email address
-    ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID}]}") > /dev/null 2>&1
+    ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID},{\"op\":\"eq\",\"field\":\"isActive\",\"value\":1}]}") > /dev/null 2>&1
     ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d '{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
     ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; #echo "ATContactID:$ATContactID"
     sudo -u $Username defaults write "/Users/$Username/Library/Preferences/profileconfig.plist" ATContactID "$ATContactID"
@@ -95,22 +95,25 @@ getATFields() {
 ticketDialog() {
     ticketDialog="$(/usr/local/bin/dialog \
         --title none \
-        --message "none" \
+        --message none \
+        --bannerimage "$localDir/images/banner.png" \
+        --bannertitle "New Support Request                            " \
+        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left"\
         --messagefont size=15 \
-        --bannerimage "$localDir/images/new_support_request.png" \
         --button1text "Submit" \
         --button2text "Cancel" \
-        --buttonstyle center \
-        --position center \
+        --infobutton \
+        --infobuttontext "How to take a screenshot" \
+        --infobuttonaction "https://support.apple.com/en-au/102646" \
+        --moveable \
         --height 600 \
-        --infobox "If urgent assistance<br>is required, please<br>call Systima on:<br>**[03 8353 0530](tel:0383530530)**<br><br><br>To take a screenshot press<br>Shift+Command+4<br>You can then draw a box for the screenshot.<br><br>Alternatively, press space and your mouse will become a camera symbol<br>![Screenshot camera cursor](https://raw.githubusercontent.com/Systima-Australia/SupportApp/main/images/screenshot_icon.png)<br>then simply click the window with the error to take a perfect screenshot." \
-        --dialog \
+        --infobox "If urgent assistance<br>is required, please<br>call Systima:<br><br>**[&#128222;: 03 8353 0530](tel:0383530530)**" \
         --textfield "Contact Name",required,value="$userRealName" \
         --textfield "Contact Email Address",required,value="$ATContactEmail" \
         --textfield "Contact Phone Number",required,value="$ATContactMobile" \
         --textfield "Computer Name",value="$workstation" \
-        --textfield "Ticket Title",required,regex=".{1,70}",,regexerror="Ticket Title has a maximum of 70 characters" \
-        --textfield "Detailed description",required,editor \
+        --textfield "Ticket Title",required,regex=".{1,70}",prompt="70 characters max",regexerror="Ticket Title has a maximum of 70 characters" \
+        --textfield "Detailed description",required,value="Please do not include any passwords in your request",editor \
         --textfield "When did the issue start",value="$(date +"%d/%m/%y %H:%M")" \
         --textfield "Attach Screenshot,fileselect",filetype="jpeg jpg png"
         )"
@@ -129,7 +132,7 @@ ticketDialog() {
 
 verifyUserID() {
     progessDialog "Verifing contact information..." &
-    ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID}]}") > /dev/null 2>&1
+    ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID},{\"op\":\"eq\",\"field\":\"isActive\",\"value\":1}]}") > /dev/null 2>&1
     ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
     ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; echo "ATContactID:$ATContactID"
     dialogUpdate "quit:" # Close the progress dialog
@@ -213,7 +216,7 @@ postATTicket
 getATTicketNumber
 
 [[ -n "$ATTicketNumber" ]] &&
-    responseDialog "$ATTicketNumber" || {
+    responseDialog "Ticket Submitted" "$ATTicketNumber" || {
     errorDialog "Could not retrieve Ticket Number" \
 "Your ticket may have been submitted,
 however there was unfortunately no response
