@@ -28,6 +28,5 @@ downloadAssets() {
     # Set permissions
     sudo chown root:wheel "$localDir"
     sudo chmod 755 "$localDir"
-    sudo chmod -R a-r "$localDir"
-    sudo chmod -R a+r "$localDir/images"
+    sudo chmod -R a+r "$localDir"
 }
