@@ -15,7 +15,7 @@ export repo="SupportApp"
 export localDir="/Library/Application Support/Systima/$repo"
 
 # Include subshells for functions
-source "$localDir/download_assets.bash"
+source "/Library/Application Support/Systima/download_assets.bash"
 source "$localDir/dialog.bash"
 source "$localDir/.cacheCreds.bash"
 
