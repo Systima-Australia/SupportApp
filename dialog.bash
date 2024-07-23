@@ -1,9 +1,9 @@
 #!/bin/bash
 
-localDir="/Library/Application Support/Systima/SupportApp"
 progressDialogCommand="/var/tmp/dialog.log"
-source "$localDir/.cacheCreds.bash"
+source "/Library/Application Support/Systima/.cacheCreds.bash"
 
+# Function to update the progress dialog message
 dialogUpdate() {
     # $1: dialog command
     local dcommand="$1"
@@ -15,7 +15,7 @@ dialogUpdate() {
 progessDialog () {
     /usr/local/bin/dialog \
         --title none \
-        --icon "$localDir/images/systima_logo.png" --iconsize 100 -s \
+        --icon "/Library/Application Support/Systima/macosicons/systima_logo.png" --iconsize 100 -s \
         --dialog \
         --message "$1" \
         --messagefont size=20 \
@@ -26,15 +26,15 @@ progessDialog () {
         --position centre \
         --movable \
         --commandfile "$progressDialogCommand" \
-        --ontop
+        --ontop &
 }
 
 errorDialog() {
     /usr/local/bin/dialog \
         --title none \
-        --bannerimage "$localDir/images/banner.png" \
+        --bannerimage "/Library/Application Support/Systima/SupportApp/images/banner.png" \
         --bannertitle "$1                                " \
-        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left" \
+        --titlefont "name=Helvetica Neue,colour=#f8f8f2,weight=light,size=20,align=left" \
         --message "$2" \
         --messagefont size=20 \
         --messageposition center \
@@ -51,11 +51,11 @@ errorDialog() {
 responseDialog() {
     /usr/local/bin/dialog \
         --title none \
-        --bannerimage "$localDir/images/banner.png" \
+        --bannerimage "/Library/Application Support/Systima/SupportApp/images/banner.png" \
         --bannertitle "$1                                " \
-        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left" \
+        --titlefont "name=Helvetica Neue,colour=#f8f8f2,weight=light,size=20,align=left" \
         --message "Ticket Number:<br>### $2<br><br>If urgent assistance is required, please call Systima:<br>### [03 8353 0530](tel:0383530530)" \
-        --messagefont "name=Helvetica,weight=light,size=18" \
+        --messagefont "name=Helvetica Neue,weight=light,size=18" \
         --messagealignment center \
         --messageposition top \
         --button1text "OK" \
@@ -64,16 +64,12 @@ responseDialog() {
 }
 
 getEmailDialog() {
-    Username=$(stat -f%Su /dev/console)
-    localDir="/Library/Application Support/Systima/SupportApp"
-    progressDialogCommand="/var/tmp/dialog.log"
-    source "$localDir/.cacheCreds.bash"
     contactEmail=$(defaults read "/Users/$(stat -f%Su /dev/console)/Library/Group Containers/UBF8T346G9.Office/Outlook/Outlook 15 Profiles/Main Profile/ProfilePreferences.plist" DefaultAccountIdentifier | sed 's/_ActiveSyncExchange_HxS//') >/dev/null 2>&1 #; echo "$userEmailaddress"
     emailResponse="$(/usr/local/bin/dialog \
         --title none \
-        --bannerimage "$localDir/images/banner.png" \
+        --bannerimage "/Library/Application Support/Systima/SupportApp/images/banner.png" \
         --bannertitle "Ticket lookup                                     " \
-        --titlefont "name=Helvetica,colour=#f8f8f2,weight=light,size=40,align=left" \
+        --titlefont "name=Helvetica Neue,colour=#f8f8f2,weight=light,size=20,align=left" \
         --infobox "If urgent assistance<br>is required, please<br>call Systima:<br><br>**[&#128222;: 03 8353 0530](tel:0383530530)**" \
         --button1text "Submit" \
         --button2text "Cancel" \
@@ -82,7 +78,7 @@ getEmailDialog() {
         --messagefont size=15 \
         --moveable \
         --height 250 \
-        --textfield "Email:",required,value="$contactEmail"
+        --textfield "Email:", required, value="$contactEmail"
     )"
     returncode=$?
     [[ $returncode -eq 2 ]] && { echo "Email search cancelled by user" && exit 0; }

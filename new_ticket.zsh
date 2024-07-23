@@ -12,17 +12,17 @@
 # Global variable definitions
 export Username=$(stat -f%Su /dev/console)
 export repo="SupportApp"
-export localDir="/Library/Application Support/Systima/$repo"
+export localDir="/Library/Application Support/Systima/"
 
 # Include subshells for functions
 source "/Library/Application Support/Systima/download_assets.bash"
-source "$localDir/dialog.bash"
-source "$localDir/.cacheCreds.bash"
+source "$localDir/SupportApp/dialog.bash"
+source "$localDir/SupportApp/.cacheCreds.bash"
 
 ####################################################################################################
 
 # Confirm all assets are up to date
-downloadAssets "$repo"
+downloadAssets SupportApp
 
 getWorkstationStats() {
     # Workstation information
@@ -60,7 +60,7 @@ getWorkstationStats() {
 
 getATFields() {
     # Autotask API credentials
-    progessDialog "Retrieving ticket data..." &
+    progessDialog "Retrieving ticket data..."
     
     # Cache the Autotask configurationID against device serial number
     ATConfigItemQuery=$(ATAPIQuery "ConfigurationItems" "{\"filter\":[{\"op\":\"eq\",\"field\":\"serialNumber\",\"value\":\"$(system_profiler SPHardwareDataType | awk '/Serial/ {print $4}')\"}]}") > /dev/null 2>&1
@@ -131,7 +131,7 @@ ticketDialog() {
 }
 
 verifyUserID() {
-    progessDialog "Verifing contact information..." &
+    progessDialog "Verifing contact information..."
     ATContactQuery=$(ATAPIQuery "Contacts" "{\"filter\":[{\"op\":\"like\",\"field\":\"emailAddress\",\"value\":\"$contactEmail\"},{\"op\":\"eq\",\"field\":\"CompanyID\",\"value\":$ATCompanyID},{\"op\":\"eq\",\"field\":\"isActive\",\"value\":1}]}") > /dev/null 2>&1
     ATContact=$(echo "${ATContactQuery//,/\n}" | tr -d ',{}[]()' | sed 's/"items"://') ; #echo "$ATContact"
     ATContactID=$(echo "$ATContact" | grep '"id":' | awk -F':' '{print $2}') ; echo "ATContactID:$ATContactID"
@@ -171,7 +171,7 @@ Battery Condition: $batteryCondition"
 }
 
 postATTicket() {
-    progessDialog "Submitting ticket..." &
+    progessDialog "Submitting ticket..."
     # Post the ticket
     ATPostResponse=$(ATAPIPost "{
         \"billingCodeID\": 29683681,
@@ -206,7 +206,6 @@ getATTicketNumber() {
 }
 
 # Run the script
-updateAssets
 getWorkstationStats
 getATFields
 ticketDialog
